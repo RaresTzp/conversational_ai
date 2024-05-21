@@ -3,7 +3,8 @@ import re
 import os
 from datetime import date, datetime, timedelta
 from openai_helper import complete_openai
-from speech_processing import Start_recording, speak
+from speech_to_text_processing import Start_recording
+from text_to_speech_processing import speak, speak_ssml
 
 
 
@@ -29,7 +30,7 @@ output_folder = f'./Output/{datetime.now().strftime("%Y%m%d_%H%M%S")}/'
 os.makedirs(output_folder)
 conversation = []
 while (True):
-    res = Start_recording(output_folder=output_folder)[0]['DisplayText']
+    res = Start_recording(output_folder=output_folder)[0]['text']
     conversation.append(res)
     print(res)
     prompt = ""
@@ -42,7 +43,7 @@ while (True):
     prompt += "A: "
     print(prompt)
     result = complete_openai(
-        prompt, token=20)
+        prompt, token=200)
     conversation.append(result)
     speak(result, output_folder=output_folder)
 # if __name__ == "__main__":
