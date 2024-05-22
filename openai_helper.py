@@ -2,6 +2,7 @@ from openai import OpenAI
 import openai
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 # from main import settings
 
 # Load your API key from an environment variable or secret management service
@@ -34,6 +35,8 @@ def complete_openai(prompt, token=20):
         ],
         max_tokens=token
     )
+    received_answer = datetime.now()
+    print(f"[{received_answer}] OpenAI response generated and sent back")
     return response.choices[0].message.content
 
 

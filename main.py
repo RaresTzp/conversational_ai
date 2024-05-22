@@ -1,12 +1,10 @@
 from dotenv import load_dotenv
-import re
 import os
-from datetime import date, datetime, timedelta
+from datetime import datetime
+import asyncio
 from openai_helper import complete_openai
 from speech_to_text_processing import Start_recording
-from text_to_speech_processing import speak, speak_ssml
-
-
+from text_to_speech_processing import speak
 
 # ---------------------------------------------------------------------------- #
 #                                     Setup                                    #
@@ -22,30 +20,34 @@ settings = {
     'openAIKey': os.environ.get('OPENAI_KEY')
 }
 
-
-
-
 output_folder = f'./Output/{datetime.now().strftime("%Y%m%d_%H%M%S")}/'
-
 os.makedirs(output_folder)
 conversation = []
-while (True):
-    res = Start_recording(output_folder=output_folder)[0]['text']
-    conversation.append(res)
-    print(res)
-    prompt = ""
-    for i in range(len(conversation)-4, len(conversation)):
-        if (i >= 0):
-            if (i % 2 == 0):
-                prompt += f"Q: {conversation[i]}\n"
-            else:
-                prompt += f"A: {conversation[i]}\n"
-    prompt += "A: "
-    print(prompt)
-    result = complete_openai(
-        prompt, token=200)
-    conversation.append(result)
-    speak(result, output_folder=output_folder)
-# if __name__ == "__main__":
 
-    # while (True):
+async def main():
+    while True:
+        res = (await Start_recording(output_folder=output_folder))[0]['text']
+        conversation.append(res)
+        transcript = datetime.now()
+        print(f"[{transcript}] Transcript was appended to the conversation, next is making the openai call")
+        
+        prompt = ""
+        for i in range(len(conversation) - 4, len(conversation)):
+            if i >= 0:
+                if i % 2 == 0:
+                    prompt += f"Q: {conversation[i]}\n"
+                else:
+                    prompt += f"A: {conversation[i]}\n"
+        prompt += "A: "
+        print(prompt)
+        
+        result = complete_openai(prompt, token=200)
+        conversation.append(result)
+        appended_answer = datetime.now()
+        print(f"[{appended_answer}] The generated answer was appended to the conversation, next is calling the speak function")
+        
+        speak(result, output_folder=output_folder)  # Synchronous call now
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
