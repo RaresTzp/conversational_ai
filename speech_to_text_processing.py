@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import sounddevice as sd
 import asyncio
+import logging
 
 # List the available audio devices and their IDs
 devices = sd.query_devices()
@@ -20,71 +21,82 @@ settings = {
     'openAIKey': os.environ.get('OPENAI_KEY')
 }
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 async def Start_recording(output_folder):
-    # Creates an instance of a speech config with specified subscription key and service region.
-    speech_config = speechsdk.SpeechConfig(subscription=settings['speechKey'], region=settings['region'])
-    speech_config.request_word_level_timestamps()
-    speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_OutputFormatOption, value="detailed")
+    """
+    Asynchronous function to start recording and recognizing speech.
 
-    # Creates a speech recognizer using the default microphone (built-in).
-    audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    Args:
+        output_folder (str): The folder to save output files.
 
-    # Initialize some variables
-    results = []
-    done = False
+    Returns:
+        list: List of recognized results with text, timestamp, and duration.
+    """
+    try:
+        speech_config = speechsdk.SpeechConfig(subscription=settings['speechKey'], region=settings['region'])
+        speech_config.request_word_level_timestamps()
+        speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_OutputFormatOption, value="detailed")
 
-    # Update the last time speech was detected.
-    def speech_detected():
-        nonlocal lastSpoken
+        audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+        results = []
+        done = asyncio.Event()
+
+        def speech_detected():
+            nonlocal lastSpoken
+            lastSpoken = int(datetime.now().timestamp() * 1000)
+
+        def handleResult(evt):
+            nonlocal results
+            res = {'text': evt.result.text, 'timestamp': evt.result.offset, 'duration': evt.result.duration, 'raw': evt.result}
+            speech_detected()
+            text = res['text']
+            logging.info(f"Recognized text: {text}")
+            if res['text']:
+                results.append(res)
+
+        def stop_cb(evt):
+            stopping_recording = datetime.now()
+            logging.info(f"[{stopping_recording}] Stopping recording. Preparing to process the transcripts")
+            done.set()
+
+        speech_recognizer.session_started.connect(lambda evt: logging.info(f'SESSION STARTED: {evt}'))
+        speech_recognizer.session_stopped.connect(stop_cb)
+        speech_recognizer.recognizing.connect(lambda evt: speech_detected())
+        speech_recognizer.canceled.connect(stop_cb)
+        speech_recognizer.recognized.connect(handleResult)
+
+        await asyncio.to_thread(speech_recognizer.start_continuous_recognition_async)
+
+        play_sound()
+
         lastSpoken = int(datetime.now().timestamp() * 1000)
 
-    # Event handler to add event to the result list
-    def handleResult(evt):
-        nonlocal results
-        res = {'text': evt.result.text, 'timestamp': evt.result.offset, 'duration': evt.result.duration, 'raw': evt.result}
-        speech_detected()
-        text = res['text']
-        print(f"text: {text}")
-        if res['text']:
-            results.append(res)
+        while not done.is_set():
+            await asyncio.sleep(1)
+            now = int(datetime.now().timestamp() * 1000)
+            inactivity = now - lastSpoken
+            if inactivity > 1000:
+                play_sound()
+            if inactivity > 3000:
+                logging.info('Stopping async recognition due to inactivity.')
+                await asyncio.to_thread(speech_recognizer.stop_continuous_recognition_async)
+                break
 
-    # Event handler to check if the recognizer is done
-    def stop_cb(evt):
-        nonlocal done
-        done = True
-        stopping_recording = datetime.now()
-        print(f"[{stopping_recording}] Stopping recording. Preparing to process the transcripts")
-
-    speech_recognizer.session_started.connect(lambda evt: print('SESSION STARTED: {}'.format(evt)))
-    speech_recognizer.session_stopped.connect(stop_cb)
-    speech_recognizer.recognizing.connect(lambda evt: speech_detected())
-    speech_recognizer.canceled.connect(stop_cb)
-    speech_recognizer.recognized.connect(handleResult)
-
-    # Start speech recognition
-    result_future = speech_recognizer.start_continuous_recognition_async()
-    result_future.get()
-
-    # Play sound to indicate that the recording session is on.
-    play_sound()
-
-    lastSpoken = int(datetime.now().timestamp() * 1000)
-
-    # Wait for speech recognition to complete
-    while not done:
         await asyncio.sleep(1)
-        now = int(datetime.now().timestamp() * 1000)
-        inactivity = now - lastSpoken
-        if inactivity > 1000:
-            play_sound()
-        if inactivity > 3000:
-            print('Stopping async recognition.')
-            stop_future = speech_recognizer.stop_continuous_recognition_async()
-            stop_future.get()  # Wait for the stop recognition to complete
-            break
+        logging.info(f"Final results: {results}")
+        return results
 
-    await asyncio.sleep(1)
-    print(results)
-    return results
+    except Exception as e:
+        logging.error(f"Error during speech recognition: {e}")
+        return []
 
+# This block is only for testing purposes. It won't be part of the module.
+if __name__ == "__main__":
+    async def test():
+        transcript = await Start_recording("./Output")
+        logging.info(f"Final Transcript: {transcript}")
+
+    asyncio.run(test())
