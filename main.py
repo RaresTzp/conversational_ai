@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 import asyncio
 import logging
-from openai_helper import complete_openai
+from openai_helper import complete_openai_async
 from speech_to_text_processing import Start_recording
 from text_to_speech_processing import speak_async
 
@@ -56,7 +56,7 @@ async def main():
 
         logging.info("Starting OpenAI completion")
         openai_start_time = datetime.now()
-        result = complete_openai(prompt, token=200)
+        result = await complete_openai_async(prompt, token=200)
         openai_end_time = datetime.now()
         logging.info(f"OpenAI completion finished. Duration: {openai_end_time - openai_start_time}")
 
