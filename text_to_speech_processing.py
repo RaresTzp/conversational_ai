@@ -8,11 +8,6 @@ import sounddevice as sd
 import asyncio
 import logging
 
-# List the available audio devices and their IDs
-devices = sd.query_devices()
-for i, device in enumerate(devices):
-    print(f"Device {i}: {device['name']} (ID: {device['index']})")
-
 load_dotenv(override=True)
 
 already_spoken = {}
@@ -78,39 +73,3 @@ async def speak_async(text, silent=False, output_folder="./Output"):
     except Exception as e:
         logging.error(f"Error during speech synthesis: {e}")
 
-async def speak_ssml_async(text):
-    """
-    Asynchronous function to synthesize speech from SSML.
-
-    Args:
-        text (str): The SSML text to be synthesized.
-
-    Returns:
-        None
-    """
-    try:
-        speech_config = speechsdk.SpeechConfig(subscription=settings['speechKey'], region=settings['region'])
-        speech_config.speech_synthesis_voice_name = 'en-US-JennyNeural'
-        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-
-        # Use asyncio.to_thread to run the blocking speak_ssml method
-        speech_synthesis_result = await asyncio.to_thread(speech_synthesizer.speak_ssml, text)
-
-        if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            logging.info(f"Speech synthesized for text [{text}]")
-        elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
-            cancellation_details = speech_synthesis_result.cancellation_details
-            logging.error(f"Speech synthesis canceled: {cancellation_details.reason}")
-            if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                logging.error(f"Error details: {cancellation_details.error_details}")
-                logging.error("Did you set the speech resource key and region values?")
-    except Exception as e:
-        logging.error(f"Error during speech synthesis: {e}")
-
-# This block is only for testing purposes. It won't be part of the module.
-if __name__ == "__main__":
-    async def test():
-        await speak_async("Hello, this is a test of the asynchronous TTS system.", silent=False, output_folder="./Output")
-        await speak_ssml_async("<speak>Hello, this is a test of the asynchronous SSML TTS system.</speak>")
-
-    asyncio.run(test())

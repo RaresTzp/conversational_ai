@@ -1,3 +1,4 @@
+#importing dependencies
 import azure.cognitiveservices.speech as speechsdk
 from datetime import datetime
 from sounds import play_sound
@@ -6,11 +7,6 @@ import os
 import sounddevice as sd
 import asyncio
 import logging
-
-# List the available audio devices and their IDs
-devices = sd.query_devices()
-for i, device in enumerate(devices):
-    print(f"Device {i}: {device['name']} (ID: {device['index']})")
 
 load_dotenv(override=True)
 
@@ -34,16 +30,21 @@ async def Start_recording(output_folder):
         list: List of recognized results with text, timestamp, and duration.
     """
     try:
+        #speech_config configures the subscription key and region
         speech_config = speechsdk.SpeechConfig(subscription=settings['speechKey'], region=settings['region'])
         speech_config.request_word_level_timestamps()
         speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_OutputFormatOption, value="detailed")
-
+        
+#audio_config configures the audio input to use the default microphone
         audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+
+#speech_recognizer is the object that will recognize the speech
         speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
         results = []
         done = asyncio.Event()
 
+#updates the last spoken so we can detect the end of speech
         def speech_detected():
             nonlocal lastSpoken
             lastSpoken = int(datetime.now().timestamp() * 1000)
@@ -92,11 +93,3 @@ async def Start_recording(output_folder):
     except Exception as e:
         logging.error(f"Error during speech recognition: {e}")
         return []
-
-# This block is only for testing purposes. It won't be part of the module.
-if __name__ == "__main__":
-    async def test():
-        transcript = await Start_recording("./Output")
-        logging.info(f"Final Transcript: {transcript}")
-
-    asyncio.run(test())
